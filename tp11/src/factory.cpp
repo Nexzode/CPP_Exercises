@@ -3,6 +3,8 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#include <functional>
+#include <unordered_map>
 
 // Liste des entitées à construire
 std::string desc = R"(Object
@@ -22,16 +24,26 @@ public:
 class Factory
 {
 public:
-    // using Builder = ...;
+    using Builder = std::function<std::unique_ptr<Entity>()>;
 
-    template <typename TDerivedEntity>
-    void register_entity()
-    {}
+    template <typename TDerivedEntity, typename... Targs>
+    void register_entity(std::string id, Targs&&... args)
+    {
+        _builders.emplace(std::move(id), [&args...]() -> std::unique_ptr<Entity>{
+            return std::make_unique<TDerivedEntity>(std::forward<Targs>(args)...);
+        });
+    }
 
-    std::unique_ptr<Entity> build(const std::string& id) const { return nullptr; }
+    std::unique_ptr<Entity> build(const std::string& id) const {
+        auto it = _builders.find(id);
+        if(it != _builders.end()) {
+            return it->second();
+         }
+        return nullptr;
+    } 
 
 private:
-    // ...
+    std::unordered_map<std::string, Builder> _builders;
 };
 
 class Object : public Entity
@@ -91,7 +103,10 @@ private:
 int main()
 {
     Factory factory;
-    // factory.register_entity<Object>("Object");
+    factory.register_entity<Object>("Object");
+    factory.register_entity<Tree>("Tree");
+    factory.register_entity<Person>("Person", "Jean");
+    factory.register_entity<Animal>("Dog", "cezr");
 
     std::vector<std::unique_ptr<Entity>> entities;
 
